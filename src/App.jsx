@@ -199,7 +199,7 @@ const App = () => {
     </div>
 
       {/* Google Map */}
-      <LoadScript googleMapsApiKey="AIzaSyAeLI09lwxkb-j_c5I4QEJJuOr-JPgQIw4">
+      <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAP_KEY}>
         <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={12}>
           {circles.map((circle, index) => (
       
