@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GoogleMap, Circle } from '@react-google-maps/api';
 import "./App.css";
-import { Analytics } from "@vercel/analytics/react"
 import cityData from './cityData.json';
 import { useNavigate } from 'react-router-dom';
 
