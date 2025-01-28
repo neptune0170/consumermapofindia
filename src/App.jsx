@@ -9,6 +9,22 @@ const containerStyle = {
   height: '100vh',
 };
 
+// Add mobile-specific map options
+const mobileMapOptions = {
+  gestureHandling: 'greedy', // Allows single finger pan/zoom on mobile
+  zoomControl: false,        // Hide zoom controls
+  streetViewControl: false,  // Hide street view control
+  mapTypeControl: false,     // Hide map type control
+  fullscreenControl: false   // Hide fullscreen control
+};
+
+const desktopMapOptions = {
+  zoomControl: true,
+  streetViewControl: true,
+  mapTypeControl: true,
+  fullscreenControl: true
+};
+
 const center = {
   lat: 19.076, // Centered near Mumbai
   lng: 72.8777,
@@ -35,7 +51,18 @@ const App = () => {
   const [mapRef, setMapRef] = useState(null);
   const navigate = useNavigate();
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
+
+  // Add resize listener
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchCircles = async (endpoint) => {
     try {
@@ -294,12 +321,13 @@ const App = () => {
         </svg>
       </button>
 
-      {/* Map */}
+      {/* Updated Map Component */}
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
         zoom={12}
         onLoad={onLoad}
+        options={isMobile ? mobileMapOptions : desktopMapOptions}
       >
         {circles.map((circle, index) => (
           <Circle
