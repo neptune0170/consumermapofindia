@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { GoogleMap, Circle } from '@react-google-maps/api';
 import "./App.css";
+import { Analytics } from "@vercel/analytics/react"
 import cityData from './cityData.json';
 import { useNavigate } from 'react-router-dom';
 
@@ -280,7 +281,7 @@ const App = () => {
       </div>
 
       {/* Search and Store Insights - Centered */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 w-96">
+      <div className="absolute top-10 left-1/2 transform -translate-x-1/2 z-10 w-96">
         <input
           type="text"
           value={searchTerm}
@@ -290,7 +291,7 @@ const App = () => {
         />
         
         {filteredCities.length > 0 && (
-          <div className="absolute w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <div className="absolute w-full  bg-white border rounded-lg shadow-lg max-h-65 overflow-y-auto">
             {filteredCities.map((city, index) => (
               <button
                 key={index}
@@ -303,12 +304,14 @@ const App = () => {
           </div>
         )}
 
-        <button
-          className="w-full bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-800"
-          onClick={handleStoreInsightsClick}
-        >
-          Store Insights
-        </button>
+        <div className="flex justify-end">
+          <button
+            className="bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-800"
+            onClick={handleStoreInsightsClick}
+          >
+            Store Insights
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu Toggle */}
