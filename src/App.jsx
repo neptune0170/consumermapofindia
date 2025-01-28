@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { GoogleMap, LoadScript, Circle } from '@react-google-maps/api';
+import { GoogleMap, Circle } from '@react-google-maps/api';
 import "./App.css";
+import cityData from './cityData.json';
+import { useNavigate } from 'react-router-dom';
 
 const containerStyle = {
   width: '100%',
@@ -28,21 +30,30 @@ const App = () => {
   const [lifestyleChecked, setLifestyleChecked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchCounter, setFetchCounter] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredCities, setFilteredCities] = useState([]);
+  const [mapRef, setMapRef] = useState(null);
+  const navigate = useNavigate();
   
 
   const fetchCircles = async (endpoint) => {
     try {
-      setFetchCounter((prev) => prev + 1); // Increment counter each time the method is called
+      setFetchCounter((prev) => prev + 1);
       console.log(`fetchCircles called ${fetchCounter + 1} times`);
 
-      const response = await fetch(`http://65.0.179.91:9090/consumermapofindia/${endpoint}/all`, {
+      const response = await fetch(`/api/${endpoint}/all`, {
+        method: 'GET',
         headers: {
-          Authorization: `Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkZXZAZ21haWwuY29tIiwiaWF0IjoxNzM3OTEyOTk1LCJleHAiOjMzMjczOTEyOTk1fQ.Fup6E4Pi9qIU46IBFlwtnGcnq8Z0mulUYKc5YHZybuM`,
-        },
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkZXZAZ21haWwuY29tIiwiaWF0IjoxNzM3OTkzMjQzLCJleHAiOjMzMjczOTkzMjQzfQ.qD9YPCEGkjnmtJ28NAzJK30mzJPC5leQO5Wc7QyqA2g`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch data');
+        const text = await response.text();
+        console.error('Response not OK:', text);
+        throw new Error(`Failed to fetch data: ${response.status}`);
       }
 
       const data = await response.json();
@@ -88,7 +99,40 @@ const App = () => {
     setLoading(false);
   };
 
+  const handleSearch = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    if (value.trim() === '') {
+      setFilteredCities([]);
+      return;
+    }
 
+    const filtered = cityData.filter(city =>
+      city.cityname.toLowerCase().replace(/"/g, '').includes(value.toLowerCase())
+    ).slice(0, 5); // Limit to 5 suggestions
+    
+    setFilteredCities(filtered);
+  };
+
+  const handleCitySelect = (city) => {
+    setSearchTerm(city.cityname.replace(/"/g, ''));
+    setFilteredCities([]);
+    
+    // Center map on selected city
+    if (mapRef) {
+      mapRef.panTo({ lat: city.lat, lng: city.long });
+      mapRef.setZoom(12);
+    }
+  };
+
+  const onLoad = (map) => {
+    setMapRef(map);
+  };
+
+  const handleStoreInsightsClick = () => {
+    navigate('/store-insights');
+  };
 
   return (
     <div className="relative">
@@ -177,46 +221,67 @@ const App = () => {
 
       
 
-      {/* Search Bar */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white p-2 rounded-lg shadow-md w-96">
-        <input
-          type="text"
-          placeholder="City Search Bar Comming Soon ..."
-          className="w-full border rounded-lg p-2"
-        />
+      {/* Updated Search Bar */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 w-96">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Search for a city..."
+            className="w-full border rounded-lg p-2 bg-white shadow-md"
+          />
+          
+          {/* Dropdown for search results */}
+          {filteredCities.length > 0 && (
+            <div className="absolute w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              {filteredCities.map((city, index) => (
+                <button
+                  key={index}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => handleCitySelect(city)}
+                >
+                  {city.cityname.replace(/"/g, '')}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
        
 
 
-     {/* Store Insights Button */}
+     {/* Updated Store Insights Button */}
      <div className="absolute top-4 right-4 z-20">
       <button
         className="bg-black text-white py-2 px-6 rounded-lg hover:bg-gray-800"
-        onClick={() => console.log("Store Insights Clicked")}
+        onClick={handleStoreInsightsClick}
       >
         Store Insights
       </button>
     </div>
 
-      {/* Google Map */}
-      <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAP_KEY}>
-        <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={12}>
-          {circles.map((circle, index) => (
-      
-            <Circle
-              key={index}
-              center={circle}
-              options={{
-                strokeColor: circle.color,
-                strokeOpacity: 0.0,
-                fillColor: circle.color,
-                fillOpacity: 0.35,
-                radius: circle.radius,
-              }}
-            />
-          ))}
-        </GoogleMap>
-      </LoadScript>
+      {/* Updated Google Map with onLoad handler */}
+      <GoogleMap
+        mapContainerStyle={containerStyle}
+        center={center}
+        zoom={12}
+        onLoad={onLoad}
+      >
+        {circles.map((circle, index) => (
+          <Circle
+            key={index}
+            center={circle}
+            options={{
+              strokeColor: circle.color,
+              strokeOpacity: 0.0,
+              fillColor: circle.color,
+              fillOpacity: 0.35,
+              radius: circle.radius,
+            }}
+          />
+        ))}
+      </GoogleMap>
     </div>
   );
 };
