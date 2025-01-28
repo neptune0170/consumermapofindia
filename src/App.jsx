@@ -34,6 +34,7 @@ const App = () => {
   const [filteredCities, setFilteredCities] = useState([]);
   const [mapRef, setMapRef] = useState(null);
   const navigate = useNavigate();
+  const [isNavOpen, setIsNavOpen] = useState(false);
   
 
   const fetchCircles = async (endpoint) => {
@@ -136,8 +137,8 @@ const App = () => {
 
   return (
     <div className="relative">
-      {/* Left Navigation Bar */}
-      <div className="absolute top-35 left-4 z-10 bg-white p-6 rounded-lg shadow-md w-80">
+      {/* Left Navigation Bar - Web Only */}
+      <div className="hidden md:block absolute top-50 left-4 z-10 bg-white p-6 rounded-lg shadow-md w-80">
         <h2 className="text-xl font-semibold mb-6">Consumer Map of India</h2>
         <div className="mb-6">
           <div className="flex items-center mb-4">
@@ -169,22 +170,54 @@ const App = () => {
           </div>
         </div>
 
-        {/* <div className="mb-6">
+        <button
+          onClick={handleShowCircles}
+          className="bg-black text-white py-2 px-4 rounded-lg w-full mt-4 flex items-center justify-center hover:bg-gray-800"
+          disabled={loading}
+        >
+          {loading ? (
+            <div className="animate-spin h-5 w-5 border-4 border-t-white border-black rounded-full"></div>
+          ) : (
+            "SHOW →"
+          )}
+        </button>
+
+        <p className="text-gray-600 text-sm text-center mt-4">
+          For Sales and Enterprise-grade solutions, contact{" "}
+          <a href="mailto:yup1989@gmail.com" className="text-blue-600 underline">
+            yup1989@gmail.com
+          </a>
+        </p>
+      </div>
+
+      {/* Mobile Navigation Panel */}
+      <div className={`md:hidden fixed bottom-0 left-0 w-full bg-white p-6 rounded-t-lg shadow-md z-30 transform transition-transform duration-300 ${isNavOpen ? 'translate-y-0' : 'translate-y-full'}`}>
+        {/* Mobile Nav Content - Same as web but with close button */}
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-semibold">Consumer Map of India</h2>
+          <button onClick={() => setIsNavOpen(false)} className="text-gray-500">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {/* Rest of the mobile nav content - same as web version */}
+        <div className="mb-6">
           <div className="flex items-center mb-4">
             <input
               type="checkbox"
-              id="lifestyle-outlets"
-              checked={lifestyleChecked}
-              onChange={(e) => setLifestyleChecked(e.target.checked)}
+              id="food-outlets"
+              checked={foodChecked}
+              onChange={(e) => setFoodChecked(e.target.checked)}
             />
-            <label htmlFor="lifestyle-outlets" className="ml-2 text-lg">Lifestyle Outlets</label>
+            <label htmlFor="food-outlets" className="ml-2 text-lg">Food and Dining Outlets</label>
           </div>
           <div className="flex justify-between items-center mb-2">
-            <label>Radius:</label>
+            <label>Radius (in Meters):</label>
             <input
               type="number"
-              value={lifestyleRadius}
-              onChange={(e) => setLifestyleRadius(Number(e.target.value))}
+              value={foodRadius}
+              onChange={(e) => setFoodRadius(Number(e.target.value))}
               className="border p-1 rounded w-20 text-right"
             />
           </div>
@@ -192,12 +225,12 @@ const App = () => {
             <label>Color:</label>
             <input
               type="color"
-              value={lifestyleColor}
-              onChange={(e) => setLifestyleColor(e.target.value)}
+              value={foodColor}
+              onChange={(e) => setFoodColor(e.target.value)}
               className="w-10 h-8 border rounded"
             />
           </div>
-        </div> */}
+        </div>
 
         <button
           onClick={handleShowCircles}
@@ -210,58 +243,58 @@ const App = () => {
             "SHOW →"
           )}
         </button>
-        {/* Contact Information */}
-      <p className="text-gray-600 text-sm text-center mt-4">
-        For Sales and Enterprise-grade solutions, contact{" "}
-        <a href="mailto:yup1989@gmail.com" className="text-blue-600 underline">
-          yup1989@gmail.com
-        </a>
-      </p>
+
+        <p className="text-gray-600 text-sm text-center mt-4">
+          For Sales and Enterprise-grade solutions, contact{" "}
+          <a href="mailto:yup1989@gmail.com" className="text-blue-600 underline">
+            yup1989@gmail.com
+          </a>
+        </p>
       </div>
 
-      
-
-      {/* Updated Search Bar */}
+      {/* Search and Store Insights - Centered */}
       <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 w-96">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={handleSearch}
-            placeholder="Search for a city..."
-            className="w-full border rounded-lg p-2 bg-white shadow-md"
-          />
-          
-          {/* Dropdown for search results */}
-          {filteredCities.length > 0 && (
-            <div className="absolute w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-              {filteredCities.map((city, index) => (
-                <button
-                  key={index}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                  onClick={() => handleCitySelect(city)}
-                >
-                  {city.cityname.replace(/"/g, '')}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={handleSearch}
+          placeholder="Search for a city..."
+          className="w-full border rounded-lg p-2 bg-white shadow-md mb-2"
+        />
+        
+        {filteredCities.length > 0 && (
+          <div className="absolute w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            {filteredCities.map((city, index) => (
+              <button
+                key={index}
+                className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                onClick={() => handleCitySelect(city)}
+              >
+                {city.cityname.replace(/"/g, '')}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button
+          className="w-full bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-800"
+          onClick={handleStoreInsightsClick}
+        >
+          Store Insights
+        </button>
       </div>
-       
 
-
-     {/* Updated Store Insights Button */}
-     <div className="absolute top-4 right-4 z-20">
-      <button
-        className="bg-black text-white py-2 px-6 rounded-lg hover:bg-gray-800"
-        onClick={handleStoreInsightsClick}
+      {/* Mobile Menu Toggle */}
+      <button 
+        className="md:hidden fixed bottom-4 right-4 z-40 bg-black text-white p-3 rounded-full shadow-lg"
+        onClick={() => setIsNavOpen(true)}
       >
-        Store Insights
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
       </button>
-    </div>
 
-      {/* Updated Google Map with onLoad handler */}
+      {/* Map */}
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}

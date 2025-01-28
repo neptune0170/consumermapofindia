@@ -4,6 +4,7 @@ import MapWrapper from './components/MapWrapper';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
+
     <MapWrapper />
  
 );
