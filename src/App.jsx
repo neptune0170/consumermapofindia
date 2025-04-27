@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GoogleMap, Circle } from '@react-google-maps/api';
+import { GoogleMap, Circle, OverlayView, Rectangle } from '@react-google-maps/api';
 import "./App.css";
 import cityData from './cityData.json';
 import { useNavigate } from 'react-router-dom';
@@ -9,20 +9,24 @@ const containerStyle = {
   height: '100vh',
 };
 
-// Add mobile-specific map options
+// Modify the map options to be simpler
 const mobileMapOptions = {
-  gestureHandling: 'greedy', // Allows single finger pan/zoom on mobile
-  zoomControl: false,        // Hide zoom controls
-  streetViewControl: false,  // Hide street view control
-  mapTypeControl: false,     // Hide map type control
-  fullscreenControl: false   // Hide fullscreen control
+  gestureHandling: 'greedy',
+  zoomControl: false,
+  streetViewControl: false,
+  mapTypeControl: false,
+  fullscreenControl: false,
+  minZoom: 11,
+  maxZoom: 20
 };
 
 const desktopMapOptions = {
   zoomControl: true,
   streetViewControl: true,
   mapTypeControl: true,
-  fullscreenControl: true
+  fullscreenControl: true,
+  minZoom: 11,
+  maxZoom: 20
 };
 
 const center = {
@@ -36,6 +40,117 @@ const delay2sec = ()=>{
   
   });
 } 
+
+const GRID_SIZE_DEGREES = 0.009; // approximately 1km at equator
+
+const METERS_PER_PIXEL_AT_ZOOM_LEVEL_1 = 78271.484;
+
+const createGridForBounds = (bounds, zoom) => {
+  const ne = bounds.getNorthEast();
+  const sw = bounds.getSouthWest();
+  
+  // Snap to grid
+  const startLat = Math.floor(sw.lat() / GRID_SIZE_DEGREES) * GRID_SIZE_DEGREES;
+  const endLat = Math.ceil(ne.lat() / GRID_SIZE_DEGREES) * GRID_SIZE_DEGREES;
+  const startLng = Math.floor(sw.lng() / GRID_SIZE_DEGREES) * GRID_SIZE_DEGREES;
+  const endLng = Math.ceil(ne.lng() / GRID_SIZE_DEGREES) * GRID_SIZE_DEGREES;
+
+  const grid = [];
+
+  for (let lat = startLat; lat <= endLat; lat += GRID_SIZE_DEGREES) {
+    for (let lng = startLng; lng <= endLng; lng += GRID_SIZE_DEGREES) {
+      grid.push({
+        bounds: {
+          north: lat + GRID_SIZE_DEGREES,
+          south: lat,
+          east: lng + GRID_SIZE_DEGREES,
+          west: lng
+        },
+        center: { 
+          lat: lat + (GRID_SIZE_DEGREES/2), 
+          lng: lng + (GRID_SIZE_DEGREES/2) 
+        },
+        key: `${lat.toFixed(6)},${lng.toFixed(6)}`
+      });
+    }
+  }
+
+  return grid;
+};
+
+const countStoresInCell = (bounds, stores) => {
+  return stores.filter(store => 
+    store.lat >= bounds.south &&
+    store.lat <= bounds.north &&
+    store.lng >= bounds.west &&
+    store.lng <= bounds.east
+  ).length;
+};
+
+// Add these constants for color scaling
+const COLOR_SCALES = {
+  food: [
+    { threshold: 0, color: 'rgba(255, 0, 0, 0.1)' },
+    { threshold: 5, color: 'rgba(255, 0, 0, 0.3)' },
+    { threshold: 10, color: 'rgba(255, 0, 0, 0.5)' },
+    { threshold: 20, color: 'rgba(255, 0, 0, 0.7)' }
+  ],
+  lifestyle: [
+    { threshold: 0, color: 'rgba(0, 0, 255, 0.1)' },
+    { threshold: 5, color: 'rgba(0, 0, 255, 0.3)' },
+    { threshold: 10, color: 'rgba(0, 0, 255, 0.5)' },
+    { threshold: 20, color: 'rgba(0, 0, 255, 0.7)' }
+  ]
+};
+
+const getColorForCount = (count, type) => {
+  const scale = COLOR_SCALES[type];
+  for (let i = scale.length - 1; i >= 0; i--) {
+    if (count >= scale[i].threshold) return scale[i].color;
+  }
+  return scale[0].color;
+};
+
+// Custom Grid Cell component
+const GridCell = ({ bounds, storeCount, onClick }) => {
+  const getColor = (count) => {
+    if (count === 0) return 'rgba(200, 200, 200, 0.1)';
+    if (count < 5) return 'rgba(255, 0, 0, 0.2)';
+    if (count < 10) return 'rgba(255, 0, 0, 0.4)';
+    if (count < 20) return 'rgba(255, 0, 0, 0.6)';
+    return 'rgba(255, 0, 0, 0.8)';
+  };
+
+  return (
+    <Rectangle
+      bounds={bounds}
+      options={{
+        fillColor: getColor(storeCount),
+        fillOpacity: 1,
+        strokeColor: '#666',
+        strokeWeight: 1,
+        strokeOpacity: 0.5,
+        clickable: true
+      }}
+      onClick={onClick}
+    >
+      {storeCount > 0 && (
+        <OverlayView
+          position={{ 
+            lat: bounds.south + (bounds.north - bounds.south) / 2,
+            lng: bounds.west + (bounds.east - bounds.west) / 2
+          }}
+          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+        >
+          <div className="bg-white px-2 py-1 rounded shadow text-sm">
+            {storeCount} stores
+          </div>
+        </OverlayView>
+      )}
+    </Rectangle>
+  );
+};
+
 const App = () => {
   const [circles, setCircles] = useState([]);
   const [foodRadius, setFoodRadius] = useState(100);
@@ -52,6 +167,11 @@ const App = () => {
   const navigate = useNavigate();
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [selectedCell, setSelectedCell] = useState(null);
+  const [gridCells, setGridCells] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [isGridEnabled, setIsGridEnabled] = useState(false);
+  const [shouldShowGrid, setShouldShowGrid] = useState(false);
   
 
   // Add resize listener
@@ -85,7 +205,10 @@ const App = () => {
       }
 
       const data = await response.json();
-      return data.map((location) => ({ lat: location.latitude, lng: location.longitude }));
+      return data.map((location) => ({ 
+        lat: location.latitude, 
+        lng: location.longitude 
+      }));
     } catch (error) {
       console.error('Error fetching locations:', error);
       return [];
@@ -94,36 +217,32 @@ const App = () => {
 
   const handleShowCircles = async () => {
     setLoading(true);
+    let allStores = [];
 
-    console.log('Clearing all circles...');
-    setCircles([]); // Clear existing circles
-
-    let newCircles = [];
+    // Update actual grid visibility based on preference when showing
+    setIsGridEnabled(shouldShowGrid);
 
     if (foodChecked) {
       const foodData = await fetchCircles('food');
-      console.log(" foodData - " +foodData.length);
-  
-      newCircles = [
-        ...newCircles,
-        ...foodData.map((circle) => ({ ...circle, type: 'food', color: foodColor, radius: foodRadius })),
-      ];
-      console.log("new Circles" + newCircles.length  + Array.isArray(newCircles));
+      allStores = [...allStores, ...foodData.map(store => ({
+        ...store,
+        type: 'food',
+        color: foodColor,
+        radius: foodRadius
+      }))];
     }
 
-  
     if (lifestyleChecked) {
-      console.log("Here afdasdf");
       const lifestyleData = await fetchCircles('lifestyle');
-      newCircles = [
-        ...newCircles,
-        ...lifestyleData.map((circle) => ({ ...circle, type: 'lifestyle', color: lifestyleColor, radius: lifestyleRadius })),
-      ];
+      allStores = [...allStores, ...lifestyleData.map(store => ({
+        ...store,
+        type: 'lifestyle',
+        color: lifestyleColor,
+        radius: lifestyleRadius
+      }))];
     }
 
-    console.log(`Adding ${newCircles.length} circles...`);
-    setCircles(newCircles);
-    await delay2sec();
+    setStores(allStores);
     setLoading(false);
   };
 
@@ -162,12 +281,54 @@ const App = () => {
     navigate('/store-insights');
   };
 
+  // Add click handler for grid cells
+  const handleCellClick = (cell) => {
+    setSelectedCell(cell);
+    // You can add more detailed view logic here
+    console.log(`Selected cell with ${cell.storeCount} stores`);
+    // TODO: Show detailed information in a modal or side panel
+  };
+
+  // Update grid when map bounds change
+  const handleBoundsChanged = () => {
+    if (!mapRef) return;
+    
+    const bounds = mapRef.getBounds();
+    const grid = createGridForBounds(bounds, 11);
+    
+    // Calculate store counts for each cell
+    const cellsWithCounts = grid.map(cell => ({
+      ...cell,
+      storeCount: countStoresInCell(cell.bounds, stores)
+    }));
+
+    setGridCells(cellsWithCounts);
+  };
+
+  // Update grid when stores change
+  useEffect(() => {
+    if (mapRef && stores.length > 0) {
+      handleBoundsChanged();
+    }
+  }, [stores]);
+
   return (
     <div className="relative">
       {/* Left Navigation Bar - Web Only */}
       <div className="hidden md:block absolute top-50 left-4 z-10 bg-white p-6 rounded-lg shadow-md w-80">
         <h2 className="text-xl font-semibold mb-6">Consumer Map of India</h2>
         <div className="mb-6">
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              id="grid-toggle"
+              checked={shouldShowGrid}
+              onChange={(e) => setShouldShowGrid(e.target.checked)}
+              className="mr-2"
+            />
+            <label htmlFor="grid-toggle" className="text-lg">Enable Grid View</label>
+          </div>
+
           <div className="flex items-center mb-4">
             <input
               type="checkbox"
@@ -230,6 +391,17 @@ const App = () => {
         </div>
         {/* Rest of the mobile nav content - same as web version */}
         <div className="mb-6">
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              id="grid-toggle"
+              checked={shouldShowGrid}
+              onChange={(e) => setShouldShowGrid(e.target.checked)}
+              className="mr-2"
+            />
+            <label htmlFor="grid-toggle" className="text-lg">Enable Grid View</label>
+          </div>
+
           <div className="flex items-center mb-4">
             <input
               type="checkbox"
@@ -327,24 +499,49 @@ const App = () => {
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
-        zoom={12}
+        zoom={11}
         onLoad={onLoad}
+        onBoundsChanged={handleBoundsChanged}
         options={isMobile ? mobileMapOptions : desktopMapOptions}
       >
-        {circles.map((circle, index) => (
-          <Circle
-            key={index}
-            center={circle}
-            options={{
-              strokeColor: circle.color,
-              strokeOpacity: 0.0,
-              fillColor: circle.color,
-              fillOpacity: 0.35,
-              radius: circle.radius,
-            }}
-          />
-        ))}
+        {isGridEnabled ? (
+          // Render grid cells when grid is enabled
+          gridCells.map((cell) => (
+            <GridCell
+              key={cell.key}
+              bounds={cell.bounds}
+              storeCount={cell.storeCount}
+              onClick={() => handleCellClick(cell)}
+            />
+          ))
+        ) : (
+          // Render circles when grid is disabled
+          stores.map((store, index) => (
+            <Circle
+              key={index}
+              center={{ lat: store.lat, lng: store.lng }}
+              options={{
+                strokeColor: store.color,
+                strokeOpacity: 0.0,
+                fillColor: store.color,
+                fillOpacity: 0.35,
+                radius: store.radius,
+              }}
+            />
+          ))
+        )}
       </GoogleMap>
+
+      {/* Updated detail panel */}
+      {selectedCell && (
+        <div className="absolute top-20 right-4 bg-white p-4 rounded-lg shadow-lg z-50">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold">Grid Cell Details</h3>
+            <button onClick={() => setSelectedCell(null)}>×</button>
+          </div>
+          <p>{selectedCell.storeCount} stores in this area</p>
+        </div>
+      )}
     </div>
   );
 };
